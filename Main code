@@ -1,0 +1,134 @@
+# Step 1: Mount Google Drive 
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+# Step 2: Import libraries
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+
+# Step 3: Load dataset
+df = pd.read_csv('/content/drive/MyDrive/Titanic-Dataset.csv')
+
+# Step 4: Basic info
+print("Initial Info:\n", df.info())
+print("Missing values:\n", df.isnull().sum())
+
+# Step 5: Handle missing values
+df['Age'].fillna(df['Age'].median(), inplace=True)
+df['Embarked'].fillna(df['Embarked'].mode()[0], inplace=True)
+df['Fare'].fillna(df['Fare'].median(), inplace=True)
+
+# Step 6: Feature Engineering
+df['FamilySize'] = df['SibSp'] + df['Parch'] + 1
+df['IsAlone'] = (df['FamilySize'] == 1).astype(int)
+
+# Extract Title from Name
+df['Title'] = df['Name'].str.extract(r',\s*([^\.]+)\.', expand=False)
+df['Title'] = df['Title'].replace(['Dr','Rev','Col','Major','Capt','Jonkheer','Don','Sir','Lady','Countess','Ms'], 'Rare')
+df['Title'] = df['Title'].replace({'Mlle': 'Miss', 'Mme': 'Mrs'})
+df['Title'] = df['Title'].astype('category').cat.codes
+
+# Step 7: Encode categorical variables
+df['Sex'] = df['Sex'].map({'male': 0, 'female': 1})
+df['Embarked'] = df['Embarked'].map({'C': 0, 'Q': 1, 'S': 2})
+
+# Step 8: Drop unnecessary columns
+df.drop(columns=['PassengerId', 'Name', 'Ticket', 'Cabin'], inplace=True)
+
+# Step 9: Normalize/standardize numeric features
+scaler = StandardScaler()
+num_cols = ['Age', 'Fare', 'FamilySize']
+df[num_cols] = scaler.fit_transform(df[num_cols])
+
+# Step 10: Remove outliers from Fare
+Q1 = df['Fare'].quantile(0.25)
+Q3 = df['Fare'].quantile(0.75)
+IQR = Q3 - Q1
+df = df[~((df['Fare'] < Q1 - 1.5 * IQR) | (df['Fare'] > Q3 + 1.5 * IQR))]
+
+# Step 11: Split into features and label
+X = df.drop('Survived', axis=1)
+y = df['Survived'].astype(int)
+
+# Step 12: Train-test split
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+
+print("Preprocessing complete.")
+print("X_train shape:", X_train.shape)
+print("X_val shape:", X_val.shape)
+
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# Step 13: Train Logistic Regression model
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train, y_train)
+
+# Step 14: Evaluate on validation set
+y_pred = model.predict(X_val)
+
+# Step 15: Print results
+print(" Accuracy on validation set:", accuracy_score(y_val, y_pred))
+print("\n Classification Report:\n", classification_report(y_val, y_pred))
+print("\n Confusion Matrix:\n", confusion_matrix(y_val, y_pred))
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+sns.set(style="whitegrid")
+
+# Boxplots before removing outliers
+plt.figure(figsize=(16, 5))
+
+plt.subplot(1, 3, 1)
+sns.boxplot(y=df['Age'])
+plt.title("Age Outliers")
+
+plt.subplot(1, 3, 2)
+sns.boxplot(y=df['Fare'])
+plt.title("Fare Outliers")
+
+plt.subplot(1, 3, 3)
+sns.boxplot(y=df['FamilySize'])
+plt.title("FamilySize Outliers")
+
+plt.tight_layout()
+plt.show()
+
+def remove_outliers_iqr(dataframe, column):
+    Q1 = dataframe[column].quantile(0.25)
+    Q3 = dataframe[column].quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    return dataframe[(dataframe[column] >= lower_bound) & (dataframe[column] <= upper_bound)]
+
+# Remove outliers for each numeric feature
+df = remove_outliers_iqr(df, 'Age')
+df = remove_outliers_iqr(df, 'Fare')
+df = remove_outliers_iqr(df, 'FamilySize')
+
+#After remove outliers
+
+plt.figure(figsize=(16, 5))
+
+plt.subplot(1, 3, 1)
+sns.boxplot(y=df['Age'])
+plt.title("Age After Outlier Removal")
+
+plt.subplot(1, 3, 2)
+sns.boxplot(y=df['Fare'])
+plt.title("Fare After Outlier Removal")
+
+plt.subplot(1, 3, 3)
+sns.boxplot(y=df['FamilySize'])
+plt.title("FamilySize After Outlier Removal")
+
+plt.tight_layout()
+plt.show()
